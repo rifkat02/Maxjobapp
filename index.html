@@ -4,10 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Биржа Задач / MAX Messenger</title>
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Supabase JS Client -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans pb-20">
 
@@ -84,19 +81,14 @@
       </div>
 
       <button type="submit" class="w-full bg-green-600 text-white font-bold py-3 rounded-lg shadow hover:bg-green-700 transition">
-        Опубликовать и оплатить (200 ₽)
+        Опубликовать вакансию
       </button>
     </form>
   </main>
 
   <script>
-    const SUPABASE_URL = 'https://yaowectkpqumdqkuypn.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhb3dlY3RrcHF1bWRxZ2t1eXBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxMDU3NzgsImV4cCI6MjEwNzY4MTc3OH0.FMFgseXVsffkdiMecfSIrvdEFZsBWcmPkdu1GNdkc88';
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
     let currentUser = null;
 
-    // Надежная инициализация без ожидания события load
     function initApp() {
       if (window.MaxChatApp) {
         window.MaxChatApp.ready();
@@ -135,60 +127,53 @@
 
     async function loadJobs() {
       const category = document.getElementById('categoryFilter').value;
-      let query = supabaseClient.from('jobs').select('*').eq('status', 'active').order('created_at', { ascending: false });
-      
-      if (category) {
-        query = query.eq('category', category);
-      }
-
-      const { data: jobs, error } = await query;
       const jobsList = document.getElementById('jobsList');
+      
+      try {
+        const url = category ? `/api/jobs?category=${encodeURIComponent(category)}` : '/api/jobs';
+        const response = await fetch(url);
+        const result = await response.json();
 
-      if (error) {
-        jobsList.innerHTML = `<p class="text-center text-red-500 py-8">Ошибка загрузки: ${error.message}</p>`;
-        return;
-      }
+        if (!result.success || !result.data || result.data.length === 0) {
+          jobsList.innerHTML = '<p class="text-center text-gray-500 py-8">Активных вакансий пока нет</p>';
+          return;
+        }
 
-      if (!jobs || jobs.length === 0) {
-        jobsList.innerHTML = '<p class="text-center text-gray-500 py-8">Активных вакансий пока нет</p>';
-        return;
-      }
-
-      jobsList.innerHTML = jobs.map(job => `
-        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-          <div class="flex justify-between items-start mb-2">
-            <span class="bg-blue-100 text-blue-800 text-xs px-2.5 py-0.5 rounded font-medium">${job.category}</span>
-            <span class="text-green-600 font-bold text-sm">${job.salary}</span>
+        jobsList.innerHTML = result.data.map(job => `
+          <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+            <div class="flex justify-between items-start mb-2">
+              <span class="bg-blue-100 text-blue-800 text-xs px-2.5 py-0.5 rounded font-medium">${job.category}</span>
+              <span class="text-green-600 font-bold text-sm">${job.salary}</span>
+            </div>
+            <h3 class="font-bold text-gray-900 mb-1">${job.description}</h3>
+            <div class="text-xs text-gray-500 space-y-1 mb-3">
+              <p>📍 ${job.location}</p>
+              <p>⏰ ${job.work_date_time}</p>
+              <p>👥 Требуется: ${job.workers_count} чел.</p>
+            </div>
+            <button onclick="respondToJob('${job.id}')" class="w-full bg-blue-600 text-white py-2 rounded text-sm font-semibold hover:bg-blue-700">
+              Откликнуться
+            </button>
           </div>
-          <h3 class="font-bold text-gray-900 mb-1">${job.description}</h3>
-          <div class="text-xs text-gray-500 space-y-1 mb-3">
-            <p>📍 ${job.location}</p>
-            <p>⏰ ${job.work_date_time}</p>
-            <p>👥 Требуется: ${job.workers_count} чел.</p>
-          </div>
-          <button onclick="respondToJob('${job.id}')" class="w-full bg-blue-600 text-white py-2 rounded text-sm font-semibold hover:bg-blue-700">
-            Откликнуться
-          </button>
-        </div>
-      `).join('');
+        `).join('');
+      } catch (err) {
+        jobsList.innerHTML = `<p class="text-center text-red-500 py-8">Ошибка загрузки: ${err.message}</p>`;
+      }
     }
 
     async function respondToJob(jobId) {
       if (!currentUser) return alert('Ошибка авторизации');
       
-      const { error } = await supabaseClient.from('responses').insert({
-        job_id: jobId,
-        worker_id: currentUser.id
-      });
-
-      if (error) {
-        if (error.code === '23505') {
-          alert('Вы уже откликались на эту вакансию!');
-        } else {
-          alert('Ошибка при отправке отклика: ' + error.message);
-        }
-      } else {
-        alert('Успешно! Работодатель получил ваше уведомление.');
+      try {
+        const response = await fetch('/api/respond', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId, workerId: currentUser.id })
+        });
+        const result = await response.json();
+        alert(result.message || result.error);
+      } catch (err) {
+        alert('Ошибка соединения: ' + err.message);
       }
     }
 
@@ -196,38 +181,19 @@
       event.preventDefault();
 
       const newJob = {
-        employer_id: currentUser.id,
         category: document.getElementById('category').value,
         workers_count: parseInt(document.getElementById('workersCount').value),
         description: document.getElementById('description').value,
         work_date_time: document.getElementById('workDateTime').value,
         salary: document.getElementById('salary').value,
-        location: document.getElementById('location').value,
-        status: 'pending_payment'
+        location: document.getElementById('location').value
       };
 
-      await supabaseClient.from('users').upsert({ id: currentUser.id, first_name: currentUser.first_name });
-
-      const { data, error } = await supabaseClient.from('jobs').insert(newJob).select().single();
-
-      if (error) {
-        alert('Ошибка сохранения: ' + error.message);
-        return;
-      }
-
-      initiatePayment(data.id);
-    }
-
-    async function initiatePayment(jobId) {
-      alert('Заказ создан! Обработка...');
-      
       try {
-        const response = await fetch('/api/create-payment', {
+        const response = await fetch('/api/jobs', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ jobId })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user: currentUser, job: newJob })
         });
 
         const result = await response.json();
@@ -237,7 +203,7 @@
           document.getElementById('jobForm').reset();
           switchTab('feed');
         } else {
-          alert('Ошибка: ' + (result.error || 'Не удалось обработать платеж'));
+          alert('Ошибка: ' + (result.error || 'Не удалось сохранить'));
         }
       } catch (err) {
         alert('Ошибка соединения с сервером: ' + err.message);
