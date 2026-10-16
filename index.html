@@ -1,214 +1,187 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Биржа Задач / MAX Messenger</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Биржа Задач / Подработка</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans pb-20">
-
-  <!-- Шапка -->
-  <header class="bg-blue-600 text-white p-4 sticky top-0 z-10 shadow">
-    <h1 class="text-xl font-bold text-center">Биржа Задач / Подработка</h1>
-  </header>
-
-  <!-- Навигация (Вкладки) -->
-  <div class="flex justify-around bg-white border-b sticky top-14 z-10">
-    <button id="tabFeedBtn" onclick="switchTab('feed')" class="py-3 px-4 font-semibold text-blue-600 border-b-2 border-blue-600 w-1/2 text-center">
-      🔍 Лента вакансий
-    </button>
-    <button id="tabCreateBtn" onclick="switchTab('create')" class="py-3 px-4 font-semibold text-gray-500 w-1/2 text-center">
-      ➕ Разместить
-    </button>
-  </div>
-
-  <!-- Вкладка 1: Лента вакансий -->
-  <main id="feedTab" class="p-4 max-w-lg mx-auto">
-    <div class="mb-4 bg-white p-3 rounded-lg shadow-sm space-y-2">
-      <select id="categoryFilter" onchange="loadJobs()" class="w-full border rounded p-2 text-sm">
-        <option value="">Все категории</option>
-        <option value="Строительство">Строительство</option>
-        <option value="Погрузка">Погрузка / Разгрузка</option>
-        <option value="Уборка">Уборка / Клининг</option>
-        <option value="Другое">Другое</option>
-      </select>
-    </div>
-
-    <div id="jobsList" class="space-y-4">
-      <p class="text-center text-gray-500">Загрузка вакансий...</p>
-    </div>
-  </main>
-
-  <!-- Вкладка 2: Форма подачи объявления -->
-  <main id="createTab" class="p-4 max-w-lg mx-auto hidden">
-    <form id="jobForm" onsubmit="createJob(event)" class="bg-white p-4 rounded-lg shadow-sm space-y-4">
-      <h2 class="font-bold text-lg mb-2">Детали вакансии</h2>
-      
-      <div>
-        <label class="block text-sm font-medium mb-1">Специализация</label>
-        <select id="category" required class="w-full border rounded p-2 text-sm">
-          <option value="Строительство">Строительство</option>
-          <option value="Погрузка">Погрузка / Разгрузка</option>
-          <option value="Уборка">Уборка / Клининг</option>
-          <option value="Другое">Другое</option>
-        </select>
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium mb-1">Количество человек</label>
-        <input type="number" id="workersCount" min="1" value="1" required class="w-full border rounded p-2 text-sm">
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium mb-1">Описание задачи</label>
-        <textarea id="description" placeholder="Например: Копка земли под кабель 15м" required class="w-full border rounded p-2 text-sm" rows="3"></textarea>
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium mb-1">Дата и время</label>
-        <input type="text" id="workDateTime" placeholder="Завтра к 08:00" required class="w-full border rounded p-2 text-sm">
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium mb-1">Оплата</label>
-        <input type="text" id="salary" placeholder="2 500 руб/смена" required class="w-full border rounded p-2 text-sm">
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium mb-1">Локация</label>
-        <input type="text" id="location" placeholder="Оренбург, Дзержинский р-н" required class="w-full border rounded p-2 text-sm">
-      </div>
-
-      <button type="submit" class="w-full bg-green-600 text-white font-bold py-3 rounded-lg shadow hover:bg-green-700 transition">
-        Опубликовать вакансию
-      </button>
-    </form>
-  </main>
-
-  <script>
-    let currentUser = null;
-
-    function initApp() {
-      if (window.MaxChatApp) {
-        window.MaxChatApp.ready();
-        currentUser = window.MaxChatApp.initDataUnsafe?.user || { id: 123456, first_name: 'Тестовый Пользователь' };
-      } else {
-        currentUser = { id: 123456, first_name: 'Тест Браузер' };
-      }
-      loadJobs();
-    }
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initApp);
-    } else {
-      initApp();
-    }
-
-    function switchTab(tab) {
-      const feedTab = document.getElementById('feedTab');
-      const createTab = document.getElementById('createTab');
-      const tabFeedBtn = document.getElementById('tabFeedBtn');
-      const tabCreateBtn = document.getElementById('tabCreateBtn');
-
-      if (tab === 'feed') {
-        feedTab.classList.remove('hidden');
-        createTab.classList.add('hidden');
-        tabFeedBtn.className = "py-3 px-4 font-semibold text-blue-600 border-b-2 border-blue-600 w-1/2 text-center";
-        tabCreateBtn.className = "py-3 px-4 font-semibold text-gray-500 w-1/2 text-center";
-        loadJobs();
-      } else {
-        createTab.classList.remove('hidden');
-        feedTab.classList.add('hidden');
-        tabCreateBtn.className = "py-3 px-4 font-semibold text-blue-600 border-b-2 border-blue-600 w-1/2 text-center";
-        tabFeedBtn.className = "py-3 px-4 font-semibold text-gray-500 w-1/2 text-center";
-      }
-    }
-
-    async function loadJobs() {
-      const category = document.getElementById('categoryFilter').value;
-      const jobsList = document.getElementById('jobsList');
-      
-      try {
-        const url = category ? `/api/jobs?category=${encodeURIComponent(category)}` : '/api/jobs';
-        const response = await fetch(url);
-        const result = await response.json();
-
-        if (!result.success || !result.data || result.data.length === 0) {
-          jobsList.innerHTML = '<p class="text-center text-gray-500 py-8">Активных вакансий пока нет</p>';
-          return;
-        }
-
-        jobsList.innerHTML = result.data.map(job => `
-          <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-            <div class="flex justify-between items-start mb-2">
-              <span class="bg-blue-100 text-blue-800 text-xs px-2.5 py-0.5 rounded font-medium">${job.category}</span>
-              <span class="text-green-600 font-bold text-sm">${job.salary}</span>
-            </div>
-            <h3 class="font-bold text-gray-900 mb-1">${job.description}</h3>
-            <div class="text-xs text-gray-500 space-y-1 mb-3">
-              <p>📍 ${job.location}</p>
-              <p>⏰ ${job.work_date_time}</p>
-              <p>👥 Требуется: ${job.workers_count} чел.</p>
-            </div>
-            <button onclick="respondToJob('${job.id}')" class="w-full bg-blue-600 text-white py-2 rounded text-sm font-semibold hover:bg-blue-700">
-              Откликнуться
+<body class="bg-gray-100 min-h-screen text-gray-800">
+    <!-- Шапка -->
+    <header class="bg-blue-600 text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-md mx-auto px-4 py-3 text-center font-bold text-lg">
+            Биржа Задач / Подработка
+        </div>
+        <!-- Вкладки -->
+        <div class="flex border-b border-blue-500 bg-white">
+            <button onclick="switchTab('feed')" id="tab-feed" class="flex-1 py-3 text-center font-medium text-blue-600 border-b-2 border-blue-600 transition">
+                🔍 Лента вакансий
             </button>
-          </div>
-        `).join('');
-      } catch (err) {
-        jobsList.innerHTML = `<p class="text-center text-red-500 py-8">Ошибка загрузки: ${err.message}</p>`;
-      }
-    }
+            <button onclick="switchTab('post')" id="tab-post" class="flex-1 py-3 text-center font-medium text-gray-500 hover:text-blue-600 transition">
+                ➕ Разместить
+            </button>
+        </div>
+    </header>
 
-    async function respondToJob(jobId) {
-      if (!currentUser) return alert('Ошибка авторизации');
-      
-      try {
-        const response = await fetch('/api/respond', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jobId, workerId: currentUser.id })
-        });
-        const result = await response.json();
-        alert(result.message || result.error);
-      } catch (err) {
-        alert('Ошибка соединения: ' + err.message);
-      }
-    }
+    <main class="max-w-md mx-auto p-4 pb-20">
+        <!-- Вкладка: Лента вакансий -->
+        <div id="content-feed" class="space-y-4">
+            <div class="bg-white p-3 rounded-lg shadow-sm">
+                <select id="category-filter" onchange="loadJobs()" class="w-full p-2 border rounded-md bg-gray-50 text-sm">
+                    <option value="">Все категории</option>
+                    <option value="Строительство">Строительство</option>
+                    <option value="Доставка">Доставка</option>
+                    <option value="Уборка">Уборка</option>
+                    <option value="Другое">Другое</option>
+                </select>
+            </div>
+            <div id="jobs-list" class="space-y-3">
+                <p class="text-center text-gray-500 py-6">Загрузка вакансий...</p>
+            </div>
+        </div>
 
-    async function createJob(event) {
-      event.preventDefault();
+        <!-- Вкладка: Разместить вакансию -->
+        <div id="content-post" class="hidden space-y-4 bg-white p-4 rounded-lg shadow-sm">
+            <h2 class="text-lg font-bold mb-2">Новая задача</h2>
+            <form id="job-form" onsubmit="submitJob(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Специализация</label>
+                    <select id="job-category" class="w-full p-2 border rounded-md text-sm">
+                        <option value="Строительство">Строительство</option>
+                        <option value="Доставка">Доставка</option>
+                        <option value="Уборка">Уборка</option>
+                        <option value="Другое">Другое</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Количество человек</label>
+                    <input type="number" id="job-workers" value="1" min="1" class="w-full p-2 border rounded-md text-sm" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Описание задачи</label>
+                    <textarea id="job-desc" rows="3" class="w-full p-2 border rounded-md text-sm" placeholder="Опишите суть работы..." required></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Дата и время</label>
+                    <input type="text" id="job-datetime" placeholder="Например: Завтра в 10:00" class="w-full p-2 border rounded-md text-sm" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Оплата (руб.)</label>
+                    <input type="number" id="job-salary" placeholder="2500" class="w-full p-2 border rounded-md text-sm" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Локация</label>
+                    <input type="text" id="job-location" placeholder="Город, улица, ориентир" class="w-full p-2 border rounded-md text-sm" required>
+                </div>
+                <button type="submit" class="w-full bg-green-600 text-white py-3 rounded-md font-bold text-sm hover:bg-green-700 transition">
+                    Опубликовать вакансию
+                </button>
+            </form>
+        </div>
+    </main>
 
-      const newJob = {
-        category: document.getElementById('category').value,
-        workers_count: parseInt(document.getElementById('workersCount').value),
-        description: document.getElementById('description').value,
-        work_date_time: document.getElementById('workDateTime').value,
-        salary: document.getElementById('salary').value,
-        location: document.getElementById('location').value
-      };
+    <script>
+        const SUPABASE_URL = 'https://yaowectkpqumdqkuypn.supabase.co';
+        const SUPABASE_ANON_KEY = 'Sb_publishable_56T36ZvHCaYbzme2F-Nx_w_-kRVqPFw';
+        
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-      try {
-        const response = await fetch('/api/jobs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user: currentUser, job: newJob })
-        });
+        function switchTab(tab) {
+            const feedTab = document.getElementById('tab-feed');
+            const postTab = document.getElementById('tab-post');
+            const feedContent = document.getElementById('content-feed');
+            const postContent = document.getElementById('content-post');
 
-        const result = await response.json();
-
-        if (result.success) {
-          alert(result.message);
-          document.getElementById('jobForm').reset();
-          switchTab('feed');
-        } else {
-          alert('Ошибка: ' + (result.error || 'Не удалось сохранить'));
+            if (tab === 'feed') {
+                feedTab.className = "flex-1 py-3 text-center font-medium text-blue-600 border-b-2 border-blue-600 transition";
+                postTab.className = "flex-1 py-3 text-center font-medium text-gray-500 hover:text-blue-600 transition";
+                feedContent.classList.remove('hidden');
+                postContent.classList.add('hidden');
+                loadJobs();
+            } else {
+                postTab.className = "flex-1 py-3 text-center font-medium text-blue-600 border-b-2 border-blue-600 transition";
+                feedTab.className = "flex-1 py-3 text-center font-medium text-gray-500 hover:text-blue-600 transition";
+                postContent.classList.remove('hidden');
+                feedContent.classList.add('hidden');
+            }
         }
-      } catch (err) {
-        alert('Ошибка соединения с сервером: ' + err.message);
-      }
-    }
-  </script>
+
+        async function loadJobs() {
+            const category = document.getElementById('category-filter').value;
+            const listEl = document.getElementById('jobs-list');
+            listEl.innerHTML = '<p class="text-center text-gray-500 py-6">Загрузка вакансий...</p>';
+
+            try {
+                let query = supabaseClient.from('jobs').select('*').eq('status', 'active').order('created_at', { ascending: false });
+                if (category) {
+                    query = query.eq('category', category);
+                }
+
+                const { data, error } = await query;
+                if (error) throw error;
+
+                if (!data || data.length === 0) {
+                    listEl.innerHTML = '<p class="text-center text-gray-500 py-6">Активных вакансий пока нет</p>';
+                    return;
+                }
+
+                listEl.innerHTML = data.map(job => `
+                    <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100 space-y-2">
+                        <div class="flex justify-between items-start">
+                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded font-medium">${job.category}</span>
+                            <span class="text-green-600 font-bold text-sm">${job.salary} ₽</span>
+                        </div>
+                        <p class="text-sm text-gray-700">${job.description}</p>
+                        <div class="text-xs text-gray-500 space-y-1 pt-1 border-t border-gray-50">
+                            <div>📍 ${job.location}</div>
+                            <div>🕒 ${job.work_date_time}</div>
+                            <div>👥 Требуется людей: ${job.workers_count}</div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                listEl.innerHTML = `<p class="text-center text-red-500 py-6">Ошибка: ${err.message}</p>`;
+            }
+        }
+
+        async function submitJob(e) {
+            e.preventDefault();
+
+            const jobData = {
+                category: document.getElementById('job-category').value,
+                workers_count: parseInt(document.getElementById('job-workers').value),
+                description: document.getElementById('job-desc').value,
+                work_date_time: document.getElementById('job-datetime').value,
+                salary: parseFloat(document.getElementById('job-salary').value),
+                location: document.getElementById('job-location').value,
+                status: 'active'
+            };
+
+            const userId = 'user_' + Math.random().toString(36).substring(2, 9);
+            const userName = 'Пользователь';
+
+            try {
+                // Сохраняем/обновляем пользователя в базе
+                await supabaseClient.from('users').upsert({ id: userId, first_name: userName });
+
+                // Добавляем вакансию
+                const { error } = await supabaseClient.from('jobs').insert({
+                    employer_id: userId,
+                    ...jobData
+                });
+
+                if (error) throw error;
+
+                alert('Вакансия успешно опубликована!');
+                document.getElementById('job-form').reset();
+                switchTab('feed');
+            } catch (err) {
+                alert('Ошибка публикации: ' + err.message);
+            }
+        }
+
+        loadJobs();
+    </script>
 </body>
 </html>
