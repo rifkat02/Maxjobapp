@@ -90,7 +90,7 @@
   </main>
 
   <script>
-    // Подключение к Supabase с вашими реальными ключами
+    // Подключение к Supabase с вашими ключами
     const SUPABASE_URL = 'https://yaowectkpqumdqkuypn.supabase.co';
     const SUPABASE_ANON_KEY = 'Sb_publishable_56T36ZvHCaYbzme2F-Nx_w_-kRVqPFw';
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -208,8 +208,29 @@
     }
 
     async function initiatePayment(jobId) {
-      alert('Заказ создан! Сейчас перейдём к оплате...');
-      // Сюда подключим вызов бэкенда ЮKassa на следующем шаге
+      alert('Заказ создан! Обработка...');
+      
+      try {
+        const response = await fetch('/api/create-payment', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ jobId })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          alert(result.message);
+          document.getElementById('jobForm').reset();
+          switchTab('feed');
+        } else {
+          alert('Ошибка: ' + (result.error || 'Не удалось обработать платеж'));
+        }
+      } catch (err) {
+        alert('Ошибка соединения с сервером: ' + err.message);
+      }
     }
   </script>
 </body>
