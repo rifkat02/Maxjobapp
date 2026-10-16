@@ -1,10 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  'https://yaowectkpqumdqkuypn.supabase.co',
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -16,6 +11,15 @@ export default async function handler(req, res) {
   }
 
   try {
+    const supabaseUrl = 'https://yaowectkpqumdqkuypn.supabase.co';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseKey) {
+      return res.status(500).json({ success: false, error: 'Не задан SUPABASE_SERVICE_ROLE_KEY на сервере' });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
     if (req.method === 'GET') {
       const { category } = req.query;
       let query = supabase.from('jobs').select('*').eq('status', 'active').order('created_at', { ascending: false });
@@ -24,12 +28,15 @@ export default async function handler(req, res) {
       }
       const { data, error } = await query;
       if (error) throw error;
-      return res.status(200).json({ success: true, data });
+      return res.status(200).json({ success: true, data: data || [] });
     }
 
     if (req.method === 'POST') {
       const { user, job } = req.body;
-      
+      if (!user || !job) {
+        return res.status(400).json({ success: false, error: 'Неверные данные запроса' });
+      }
+
       await supabase.from('users').upsert({ id: user.id, first_name: user.first_name });
 
       const { data, error } = await supabase.from('jobs').insert({
@@ -40,7 +47,7 @@ export default async function handler(req, res) {
         work_date_time: job.work_date_time,
         salary: job.salary,
         location: job.location,
-        status: 'active' // Сразу активная для теста
+        status: 'active'
       }).select().single();
 
       if (error) throw error;
@@ -48,8 +55,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, data, message: 'Вакансия успешно опубликована!' });
     }
 
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ success: false, error: err.message });
   }
 }
