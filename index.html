@@ -162,10 +162,8 @@
             const userName = 'Пользователь';
 
             try {
-                // Сохраняем/обновляем пользователя в базе
                 await supabaseClient.from('users').upsert({ id: userId, first_name: userName });
 
-                // Добавляем вакансию
                 const { error } = await supabaseClient.from('jobs').insert({
                     employer_id: userId,
                     ...jobData
