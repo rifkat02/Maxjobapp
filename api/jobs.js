@@ -1,8 +1,5 @@
-const SUPABASE_URL = 'https://yaowectkpqumdqkuypn.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-Type, Date, X-Api-Version');
@@ -11,14 +8,17 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  if (!SUPABASE_KEY) {
-    return res.status(500).json({ success: false, error: 'Отсутствует SUPABASE_SERVICE_ROLE_KEY в переменных окружения' });
-  }
-
   try {
+    const SUPABASE_URL = 'https://yaowectkpqumdqkuypn.supabase.co';
+    const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!SUPABASE_KEY) {
+      return res.status(500).json({ success: false, error: 'Не задан SUPABASE_SERVICE_ROLE_KEY в настройках Vercel' });
+    }
+
     // GET: Получение списка вакансий
     if (req.method === 'GET') {
-      const { category } = req.query;
+      const { category } = req.query || {};
       let url = `${SUPABASE_URL}/rest/v1/jobs?status=eq.active&order=created_at.desc`;
       if (category) {
         url += `&category=eq.${encodeURIComponent(category)}`;
@@ -31,14 +31,20 @@ export default async function handler(req, res) {
         }
       });
 
-      if (!response.ok) throw new Error('Ошибка базы данных при получении вакансий');
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error('Ошибка Supabase GET: ' + errText);
+      }
+
       const data = await response.json();
       return res.status(200).json({ success: true, data: data || [] });
     }
 
     // POST: Создание вакансии
     if (req.method === 'POST') {
-      const { user, job } = req.body;
+      const body = req.body || {};
+      const { user, job } = body;
+
       if (!user || !job) {
         return res.status(400).json({ success: false, error: 'Не переданы данные пользователя или вакансии' });
       }
@@ -87,6 +93,6 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ success: false, error: 'Method not allowed' });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: err.message || 'Внутренняя ошибка сервера' });
   }
 }
