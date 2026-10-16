@@ -1,7 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = 'https://yaowectkpqumdqkuypn.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_URL = 'https://yaowectkpqumdqkuypn.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -13,48 +11,78 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  if (!supabaseKey) {
-    return res.status(500).json({ success: false, error: 'Отсутствует SUPABASE_SERVICE_ROLE_KEY в переменных окружения Vercel' });
+  if (!SUPABASE_KEY) {
+    return res.status(500).json({ success: false, error: 'Отсутствует SUPABASE_SERVICE_ROLE_KEY в переменных окружения' });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey, {
-    auth: { persistSession: false }
-  });
-
   try {
+    // GET: Получение списка вакансий
     if (req.method === 'GET') {
       const { category } = req.query;
-      let query = supabase.from('jobs').select('*').eq('status', 'active').order('created_at', { ascending: false });
+      let url = `${SUPABASE_URL}/rest/v1/jobs?status=eq.active&order=created_at.desc`;
       if (category) {
-        query = query.eq('category', category);
+        url += `&category=eq.${encodeURIComponent(category)}`;
       }
-      const { data, error } = await query;
-      if (error) throw error;
+
+      const response = await fetch(url, {
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Ошибка базы данных при получении вакансий');
+      const data = await response.json();
       return res.status(200).json({ success: true, data: data || [] });
     }
 
+    // POST: Создание вакансии
     if (req.method === 'POST') {
       const { user, job } = req.body;
       if (!user || !job) {
         return res.status(400).json({ success: false, error: 'Не переданы данные пользователя или вакансии' });
       }
 
-      await supabase.from('users').upsert({ id: user.id, first_name: user.first_name });
+      // Сохранение/обновление пользователя
+      await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify({ id: user.id, first_name: user.first_name })
+      });
 
-      const { data, error } = await supabase.from('jobs').insert({
-        employer_id: user.id,
-        category: job.category,
-        workers_count: job.workers_count,
-        description: job.description,
-        work_date_time: job.work_date_time,
-        salary: job.salary,
-        location: job.location,
-        status: 'active'
-      }).select().single();
+      // Создание вакансии
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/jobs`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          employer_id: user.id,
+          category: job.category,
+          workers_count: job.workers_count,
+          description: job.description,
+          work_date_time: job.work_date_time,
+          salary: job.salary,
+          location: job.location,
+          status: 'active'
+        })
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error('Ошибка создания вакансии: ' + errText);
+      }
 
-      return res.status(200).json({ success: true, data, message: 'Вакансия успешно опубликована!' });
+      const data = await response.json();
+      return res.status(200).json({ success: true, data: data[0], message: 'Вакансия успешно опубликована!' });
     }
 
     return res.status(405).json({ success: false, error: 'Method not allowed' });
